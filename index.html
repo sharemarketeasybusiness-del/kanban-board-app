@@ -109,10 +109,9 @@
         </div>
         <div class="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-2">
             <div class="flex items-center space-x-2">
-                <input type="date" id="startDate" class="date-input-small" title="Start Date">
+                <input type="date" id="startDate" class="date-input-small" title="Start Date" onchange="autoApplyFilters()">
                 <span class="text-sm text-gray-500">से</span>
-                <input type="date" id="endDate" class="date-input-small" title="End Date">
-                <button onclick="applyAllFilters()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">फ़िल्टर करें</button>
+                <input type="date" id="endDate" class="date-input-small" title="End Date" onchange="autoApplyFilters()">
                 <!-- "साफ करें" button yahaan se hata diya gaya hai -->
             </div>
             <div class="w-full md:w-auto flex-grow">
@@ -259,7 +258,15 @@
         document.getElementById('searchInput').value = ''; 
         fetchKanbanData(startDateStr, endDateStr); 
     }
-    
+    function autoApplyFilters() {
+    const startDateStr = document.getElementById('startDate').value;
+    const endDateStr = document.getElementById('endDate').value;
+
+    // Agar dono dates select ho chuki hain, tabhi 'applyAllFilters' function ko call karo.
+    if (startDateStr && endDateStr) {
+        applyAllFilters();
+    }
+}
     function clearDateFilter() {
         document.getElementById('startDate').value = ''; document.getElementById('endDate').value = ''; document.getElementById('searchInput').value = '';
         lastStartDate = ''; lastEndDate = '';
@@ -387,3 +394,4 @@
 </script>
 </body>
 </html>
+
