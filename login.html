@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Kanban Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --brand-button-primary-background: #2563eb;
+            --brand-button-primary-background-hover: #1d4ed8;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Kanban Board Login</h2>
+        <div id="auth-container"></div>
+    </div>
+
+    <script type="module">
+        import { Auth } from 'https://cdn.jsdelivr.net/npm/@supabase/auth-ui-js@2/dist/auth-ui.js';
+
+        const SUPABASE_URL = 'https://tzzrqhyupdlyjkoyltjc.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6enJxaHl1cGRseWprb3lsdGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzU4MjUsImV4cCI6MjA3NzQxMTgyNX0.dWcaX4rRWrUzApTKCRbPFeYnEcRXnU9vALZ3pbDDW1A';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Check if user is already logged in, if so, redirect to main app
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                window.location.href = 'index.html';
+            }
+        });
+
+        new Auth(supabase, '#auth-container', {
+            providers: [],
+            view: 'sign_in',
+            localization: {
+                variables: {
+                    sign_in: { email_label: 'ईमेल पता', password_label: 'पासवर्ड', button_label: 'साइन इन करें', link_text: 'पहले से सदस्य नहीं हैं? साइन अप करें' },
+                    sign_up: { email_label: 'ईमेल पता', password_label: 'पासवर्ड', button_label: 'साइन अप करें', link_text: 'पहले से सदस्य हैं? साइन इन करें' },
+                    forgotten_password: { email_label: 'ईमेल पता', button_label: 'पासवर्ड रीसेट निर्देश भेजें', link_text: 'पासवर्ड भूल गए?' }
+                },
+            },
+        });
+
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') {
+                window.location.href = 'index.html';
+            }
+        });
+    </script>
+</body>
+</html>

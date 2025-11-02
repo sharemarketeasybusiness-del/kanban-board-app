@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insurance Lead Kanban Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Tailwind Configuration
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'kanban-bg': '#f3f4f6', 'column-bg': '#ffffff', 'card-bg': '#ffffff', 
+                        'c-not-contacts': '#4b5563', 'c-follow-up': '#7c3aed', 'c-doc-collected': '#0070c0', 
+                        'c-quotation-send': '#0070c0', 'c-policy-done': '#059669', 'c-gadi-nhi-hai': '#b91c1c', 
+                        'c-lead-lost': '#ef4444', 'dropdown-hover': '#f0f4f8', 
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'], },
+                }
+            }
+        }
+    </script>
+    <style>
+        .kanban-column { min-width: 300px; max-width: 350px; height: calc(100vh - 12rem); border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
+        .column-header { padding: 1rem; border-radius: 0.75rem 0.75rem 0 0; }
+        .card-list-container { max-height: calc(100% - 64px); overflow-y: auto; padding: 0.75rem; flex-grow: 1; scrollbar-width: thin; scrollbar-color: #9ca3af #f3f4f6; }
+        .kanban-card { cursor: pointer; transition: all 0.1s ease; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); border-radius: 0.5rem; margin-bottom: 0.75rem; border-left: 4px solid; }
+        .detail-text { font-size: 0.75rem; color: #4b5563; }
+        .detail-text-label { font-weight: 500; color: #9ca3af; margin-right: 4px; }
+        .note-textarea { resize: vertical; min-height: 60px; font-size: 0.75rem; padding: 0.5rem; border-radius: 0.25rem; border: 1px solid #d1d5db; }
+        .last-note-display { white-space: normal; word-break: break-word; }
+        .dropdown-menu-content { max-height: 200px; overflow-y: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
+        .dropdown-item:hover { background-color: #f3f4f6; cursor: pointer; }
+        .whatsapp-btn { background-color: #25D366; border-radius: 50%; padding: 4px; display: inline-flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+        .whatsapp-btn:hover { transform: scale(1.1); }
+        .date-input-small { padding: 0.25rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; width: 140px; }
+    </style>
+</head>
+<body class="bg-kanban-bg font-sans" style="display: none;">
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50" style="display: none;">
+        <div class="text-white text-lg flex items-center">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span id="loadingMessage">डेटा लोड हो रहा है... (Loading Data...)</span>
+        </div>
+    </div>
+
+    <!-- Main Application Header -->
+    <header class="bg-white shadow-md p-4 sticky top-0 z-10 flex flex-col space-y-3">
+        <div class="flex flex-col sm:flex-row justify-between items-center w-full">
+            <div class="flex items-center space-x-4">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">LEADS-EMP-01</h1>
+                    <p class="text-sm text-gray-500">कुल लीड्स: <span id="totalLeads">0</span></p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-700" id="userEmail"></p>
+                </div>
+                <button onclick="logout()" class="bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-600">Logout</button>
+            </div>
+        </div>
+        <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-2">
+            <div class="flex items-center space-x-2">
+                <input type="date" id="startDate" class="date-input-small" title="Start Date">
+                <span class="text-sm text-gray-500">से</span>
+                <input type="date" id="endDate" class="date-input-small" title="End Date">
+                <button onclick="applyAllFilters()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">फ़िल्टर करें</button>
+                <button onclick="clearDateFilter()" class="bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-400">साफ करें</button>
+            </div>
+            <div class="w-full md:w-auto flex-grow">
+                <input type="text" id="searchInput" oninput="handleSearchInput()" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="पूरे डेटाबेस में नाम, नंबर, या वाहन नं. से खोजें...">
+            </div>
+        </div>
+    </header>
+
+    <div id="kanbanBoard" class="p-4 flex space-x-4 overflow-x-auto h-[calc(100vh-12rem)]"></div>
+
+    <script>
+    // --- 1. CONFIGURATION AND MAPPING ---
+    const ALL_STATUSES = ['Not Contacts', 'Follow UP', 'Doc Collected', 'Quotation send', 'Policy Done', 'Gadi nhi hai', 'Lead Lost']; 
+    const STATUS_COLOR_MAP = {'Not Contacts': '#4b5563', 'Follow UP': '#7c3aed', 'Doc Collected': '#0070c0', 'Quotation send': '#0070c0', 'Policy Done': '#059669', 'Gadi nhi hai': '#b91c1c', 'Lead Lost': '#ef4444'}; 
+    const STATUS_COLUMN_DEFINITIONS = [ { id: 'not-contacts', title_en: 'Not Contacts', status: 'Not Contacts' }, { id: 'follow-up', title_en: 'Follow Up', status: 'Follow UP' }, { id: 'doc-collected', title_en: 'Doc Collected', status: 'Doc Collected' }, { id: 'quotation-send', title_en: 'Quotation Send', status: 'Quotation send' }, { id: 'policy-done', title_en: 'Policy Done', status: 'Policy Done' }, { id: 'gadi-nhi-hai', title_en: 'Gadi nhi hai', status: 'Gadi nhi hai' }, { id: 'lead-lost', title_en: 'Lead Lost', status: 'Lead Lost' }, ]; 
+    let COLUMN_SORT_ORDERS = {}; 
+    let CURRENTLY_DISPLAYED_DATA = [];
+    let debounceTimer;
+    let currentUserRole = 'viewer'; // Default role
+
+    const SUPABASE_URL = 'https://tzzrqhyupdlyjkoyltjc.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6enJxaHl1cGRseWprb3lsdGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzU4MjUsImV4cCI6MjA3NzQxMTgyNX0.dWcaX4rRWrUzApTKCRbPFeYnEcRXnU9vALZ3pbDDW1A';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // --- SECURITY & INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', function() {
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            if (!session) {
+                window.location.href = 'login.html';
+            } else {
+                document.body.style.display = 'block';
+                document.getElementById('userEmail').textContent = session.user.email;
+                currentUserRole = session.user.app_metadata.role || 'viewer';
+                initializePage();
+            }
+        });
+    });
+
+    function initializePage() {
+        const today = new Date();
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+        document.getElementById('startDate').value = firstDayOfMonth; 
+        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+        document.getElementById('endDate').value = lastDayOfMonth; 
+        
+        STATUS_COLUMN_DEFINITIONS.forEach(col => {
+            COLUMN_SORT_ORDERS[col.id] = 'asc';
+        });
+        
+        renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें और 'फ़िल्टर करें' पर क्लिक करें।");
+        updateColumnCounts([]);
+    }
+
+    async function logout() {
+        const { error } = await supabaseClient.auth.signOut();
+        if (!error) {
+            window.location.href = 'login.html';
+        }
+    }
+
+    // --- UTILITY FUNCTIONS ---
+    function showLoading(show, message = 'डेटा लोड हो रहा है... (Loading Data...)') { document.getElementById('loadingMessage').textContent = message; document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
+    function getStatusColor(status) { return STATUS_COLOR_MAP[status] || '#9ca3af'; }
+    function normalizeStatusToId(status) { return String(status).toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/--/g, '-'); }
+    function formatDateTime(dateTimeString) { if (!dateTimeString) return 'N/A'; try { const date = new Date(dateTimeString); if (isNaN(date.getTime())) return 'N/A'; const time = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }); const day = date.getDate(); const month = date.toLocaleDateString('en-IN', { month: 'short' }); return `${time} ${day} ${month}`; } catch (e) { return 'N/A'; } }
+    
+    function formatSupabaseDate(isoDateString) {
+        if (!isoDateString) return 'N/A';
+        try {
+            const date = new Date(isoDateString);
+            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+            const localDate = new Date(date.getTime() + userTimezoneOffset);
+            return localDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch (e) { return 'N/A'; }
+    }
+
+    // --- UI RENDERING ---
+    function renderColumns(initialMessage = '') { 
+        const kanbanBoard = document.getElementById('kanbanBoard'); 
+        kanbanBoard.innerHTML = ''; 
+        if(initialMessage) {
+            kanbanBoard.innerHTML = `<div class="w-full text-center p-10"><p class="text-gray-500 text-lg">${initialMessage}</p></div>`;
+            return;
+        }
+        STATUS_COLUMN_DEFINITIONS.forEach((col) => { 
+            const currentOrder = COLUMN_SORT_ORDERS[col.id] || 'asc'; 
+            let sortIcon = '↓', iconClass = 'text-blue-600'; 
+            if (currentOrder === 'desc') { sortIcon = '↑'; } 
+            kanbanBoard.insertAdjacentHTML('beforeend', `<div class="kanban-column bg-column-bg flex flex-col"><div class="column-header border-b-2 border-gray-300 flex justify-between items-center bg-gray-100"><h3 class="font-bold text-lg text-gray-800">${col.title_en} (<span id="count-${col.id}">0</span>)</h3><button onclick="toggleSortOrder('${col.id}')" class="${iconClass} p-1 rounded-full" title="Sort by Expiry"><span class="text-sm font-bold">${sortIcon}</span><span class="text-xs ml-1">Exp</span></button></div><div id="column-${col.id}" class="card-list-container"></div></div>`); 
+        }); 
+    }
+    
+    function createCardHTML(lead) {
+        const statusKey = lead.STATUS;
+        const currentNote = lead.LAST_NOTE;
+        const lastUpdateTime = lead.LAST_UPDATE_DATETIME;
+        const statusId = normalizeStatusToId(statusKey);
+        const statusColor = getStatusColor(statusKey);
+        const canEdit = currentUserRole === 'admin' || currentUserRole === 'editor';
+        
+        let expiryColor = 'text-gray-500';
+        try {
+            if (lead.EXPIRY_ISO) {
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const thirtyDays = new Date(today); thirtyDays.setDate(today.getDate() + 30);
+                const expiryDate = new Date(lead.EXPIRY_ISO); expiryDate.setHours(0, 0, 0, 0);
+                if (expiryDate < today) { expiryColor = 'text-red-600 font-bold'; } 
+                else if (expiryDate <= thirtyDays) { expiryColor = 'text-yellow-700 font-bold'; } 
+                else { expiryColor = 'text-green-600'; }
+            }
+        } catch (e) { console.error("Expiry color error:", e); }
+
+        const name = lead.NAME || 'N/A';
+        const vehicleNo = lead.VEHICLE_NO || 'N/A';
+        const vehicleName = lead.VEHICLE_NAME || 'N/A';
+        const thirdPartyPrice = lead.THIRD_PARTY_PRICE || 'N/A';
+        const allNumbers = [lead.WHATSAPP_NUMBER, lead.OTHER_NUMBER_1, lead.OTHER_NUMBER_2].filter(num => num && String(num).trim());
+        let whatsappHTML = '';
+        if (lead.WHATSAPP_NUMBER) {
+            const cleanedNumber = String(lead.WHATSAPP_NUMBER).replace(/\D/g, '');
+            const whatsappIconSVG = `<svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.269.655 4.383 1.846 6.167l-1.089 3.976 4.045-1.062zM11.9 6.173c-.278 0-.554.024-.82.073-.526.1-1.023.299-1.475.599-.452.3-.855.683-1.198 1.133-.342.45-.61.965-.777 1.52-.167.554-.252 1.144-.252 1.745s.085 1.191.252 1.745c.167.554.435 1.07.777 1.52.343.45.746.833 1.198 1.133.452.3.949.499 1.475.599.266.049.542.073.82.073s.554-.024.82-.073c.526-.1 1.023-.299 1.475-.599.452-.3.855-.683 1.198-1.133.342-.45.61-.965-.777 1.52.167-.554.252-1.144-.252-1.745s-.085-1.191-.252-1.745c-.167-.554-.435-1.07-.777-1.52-.343-.45-.746-.833-1.198-1.133-.452-.3-.949-.499-1.475-.599-.266-.049-.542-.073-.82-.073z"/></svg>`;
+            whatsappHTML = `<a href="https://wa.me/91${cleanedNumber}" target="_blank" class="whatsapp-btn ml-2" title="Chat on WhatsApp">${whatsappIconSVG}</a>`;
+        }
+
+        return `<div class="kanban-card bg-card-bg p-3" data-id="${lead.ID}" style="border-left-color: ${statusColor};"><div class="flex justify-between items-start mb-2"><span class="text-base font-bold text-gray-800 truncate">${name}</span></div><div class="flex justify-between items-center text-xs font-semibold text-blue-600 mb-2"><div class="flex items-start"><svg class="w-3 h-3 inline-block mr-1 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24c1.12.37 2.33.57 3.57.57c.55 0 1 .45 1 1V20c0 .55-.45 1-1 1c-9.39 0-17-7.61-17-17c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1c0 1.25.2 2.45.57 3.57c.11.35.03.74-.25 1.02l-2.2 2.2z"></path></svg><span class="number-display"></span></div>${whatsappHTML}</div><div class="flex justify-between items-center text-sm mb-1"><p class="text-xs ${expiryColor}"><span class="detail-text-label">Exp:</span> ${lead.VEHICLE_EXPIRY||'N/A'}</p><p class="detail-text font-bold"><span class="detail-text-label">V.No:</span> ${vehicleNo}</p></div><p class="detail-text truncate mb-2"><span class="detail-text-label">Vehicle:</span> ${vehicleName}</p><div class="last-note-container border-t pt-2"><div class="flex justify-between items-center mb-1"><span class="detail-text-label">Last Note:</span>${canEdit ? `<button class="edit-note-btn p-1 rounded-full hover:bg-gray-200" title="Edit Note"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536l12.232-12.232z"></path></svg></button>`: ''}</div><p class="last-note-display detail-text italic" data-note="${currentNote||''}">${currentNote||'No note.'}</p></div><div class="flex justify-between items-center pt-2 mt-2 border-t"><p class="text-xs font-bold text-green-700"><span class="detail-text-label">TP Price:</span> ${thirdPartyPrice}</p>${canEdit ? `<div class="relative z-20" data-dropdown-container><button onclick="openStatusDropdown(event, '${lead.ID}')" class="px-2 py-0.5 rounded-full text-xs font-medium text-white c-${statusId} flex items-center shadow-md" style="background-color: ${statusColor};">${statusKey}<svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button><div id="dropdown-menu-${lead.ID}" class="dropdown-menu-content absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white hidden"><div class="py-1">${ALL_STATUSES.map(s => `<button class="dropdown-item block w-full text-left px-4 py-2 text-xs text-gray-700" onclick="changeStatus(event, '${lead.ID}', '${s}')">${s} ${s === statusKey ? '(✓)' : ''}</button>`).join('')}</div></div></div>` : `<div class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color: ${statusColor};">${statusKey}</div>`}</div><div class="flex justify-end items-center text-xs pt-1 text-gray-500"><span class="flex items-center detail-text text-gray-400"><svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${formatDateTime(lastUpdateTime)}</span></div></div>`;
+    }
+
+    function updateColumnCounts(data) { document.getElementById('totalLeads').textContent = data.length; STATUS_COLUMN_DEFINITIONS.forEach(col => { const count = data.filter(lead => normalizeStatusToId(lead.STATUS) === col.id).length; const countEl = document.getElementById(`count-${col.id}`); if(countEl) countEl.textContent = count; }); }
+    
+    // --- 4. DATA FETCHING & FILTERING ---
+    async function fetchKanbanData(startDate, endDate) {
+        showLoading(true);
+        try {
+            let query = supabaseClient.from('leads').select('*');
+            if (startDate) { query = query.gte('expiry', startDate); }
+            if (endDate) { query = query.lte('expiry', endDate); }
+            let { data, error } = await query;
+            if (error) { throw error; }
+            const formattedData = data.map(row => ({ ID: row.id, S_NO: row.s_no, NAME: row.name, STATUS: row.status, VEHICLE_NO: row.vehicle_no, VEHICLE_NAME: row.vehicle_name, PRODUCT: row.product, LAST_NOTE: row.last_note, VEHICLE_EXPIRY: formatSupabaseDate(row.expiry), EXPIRY_ISO: row.expiry, LAST_UPDATE_DATETIME: row.last_update_datetime, THIRD_PARTY_PRICE: row.third_party_price, WHATSAPP_NUMBER: row.whatsapp_number, OTHER_NUMBER_1: row.other_number_1, OTHER_NUMBER_2: row.other_number_2 }));
+            handleFetchedData(formattedData);
+        } catch (error) {
+            handleFailure(error);
+        }
+    }
+    
+    async function searchLeads(searchTerm) {
+        showLoading(true, `"${searchTerm}" के लिए खोजा जा रहा है...`);
+        try {
+            const searchPattern = `%${searchTerm}%`;
+            let { data, error } = await supabaseClient.from('leads').select('*').or(`name.ilike.${searchPattern},whatsapp_number.ilike.${searchPattern},other_number_1.ilike.${searchPattern},other_number_2.ilike.${searchPattern},vehicle_no.ilike.${searchPattern}`).limit(100);
+            if (error) { throw error; }
+            const formattedData = data.map(row => ({ ID: row.id, S_NO: row.s_no, NAME: row.name, STATUS: row.status, VEHICLE_NO: row.vehicle_no, VEHICLE_NAME: row.vehicle_name, PRODUCT: row.product, LAST_NOTE: row.last_note, VEHICLE_EXPIRY: formatSupabaseDate(row.expiry), EXPIRY_ISO: row.expiry, LAST_UPDATE_DATETIME: row.last_update_datetime, THIRD_PARTY_PRICE: row.third_party_price, WHATSAPP_NUMBER: row.whatsapp_number, OTHER_NUMBER_1: row.other_number_1, OTHER_NUMBER_2: row.other_number_2 }));
+            handleFetchedData(formattedData);
+        } catch(error) {
+            handleFailure(error);
+        }
+    }
+    
+    function handleFetchedData(data) {
+        CURRENTLY_DISPLAYED_DATA = data;
+        renderColumns();
+        renderLeads(CURRENTLY_DISPLAYED_DATA);
+        showLoading(false);
+    }
+    function handleFailure(error) {
+        showLoading(false);
+        console.error("Supabase Function Failed:", error);
+        renderColumns(`<p class="text-red-600 font-bold">Error: Could not load data. (${error.message})</p><p class="text-gray-400 mt-2">Please check browser console for details.</p>`);
+    }
+    
+    function applyAllFilters() {
+        const startDateStr = document.getElementById('startDate').value;
+        const endDateStr = document.getElementById('endDate').value;
+        if (!startDateStr || !endDateStr) {
+            alert("शुरू करने के लिए कृपया Start Date और End Date दोनों चुनें।");
+            return;
+        }
+        document.getElementById('searchInput').value = '';
+        fetchKanbanData(startDateStr, endDateStr);
+    }
+
+    function clearDateFilter() {
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        document.getElementById('searchInput').value = '';
+        CURRENTLY_DISPLAYED_DATA = [];
+        renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें और 'फ़िल्टर करें' पर क्लिक करें।");
+        updateColumnCounts([]);
+    }
+    
+    function renderLeads(leadsToRender) {
+        const groupedLeads = leadsToRender.reduce((acc, lead) => {
+            const statusId = normalizeStatusToId(lead.STATUS);
+            if (!acc[statusId]) acc[statusId] = [];
+            acc[statusId].push(lead);
+            return acc;
+        }, {});
+        STATUS_COLUMN_DEFINITIONS.forEach(col => {
+            const colEl = document.getElementById(`column-${col.id}`);
+            if(!colEl) return;
+            colEl.innerHTML = '';
+            let leadsInColumn = groupedLeads[col.id] || [];
+            const sortOrder = COLUMN_SORT_ORDERS[col.id] || 'asc';
+            leadsInColumn.sort((a, b) => {
+                const valA = a.EXPIRY_ISO || ''; const valB = b.EXPIRY_ISO || '';
+                if (valA === '') return 1; if (valB === '') return -1;
+                return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            });
+            
+            if (leadsInColumn.length === 0) {
+                colEl.innerHTML = '<p class="text-gray-400 p-2 text-sm text-center">No leads.</p>';
+            } else {
+                leadsInColumn.forEach(lead => {
+                    const cardHTML = createCardHTML(lead);
+                    colEl.insertAdjacentHTML('beforeend', cardHTML);
+                    const cardElement = colEl.lastElementChild;
+                    const allNumbers = [lead.WHATSAPP_NUMBER, lead.OTHER_NUMBER_1, lead.OTHER_NUMBER_2].filter(num => num && String(num).trim());
+                    const numbersForDisplay = allNumbers.length > 0 ? allNumbers.join('<br>') : 'N/A';
+                    cardElement.querySelector('.number-display').innerHTML = numbersForDisplay;
+                });
+            }
+        });
+        updateColumnCounts(leadsToRender);
+        attachCardInteractionListeners();
+    }
+    
+    function handleSearchInput() {
+        clearTimeout(debounceTimer);
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        if (searchTerm.length === 0) { clearDateFilter(); return; }
+        if (searchTerm.length < 3) { return; }
+        debounceTimer = setTimeout(() => {
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            searchLeads(searchTerm);
+        }, 500);
+    }
+
+    function toggleSortOrder(columnId) {
+        const currentOrder = COLUMN_SORT_ORDERS[columnId] || 'asc';
+        const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+        COLUMN_SORT_ORDERS[columnId] = newOrder;
+        renderColumns();
+        renderLeads(CURRENTLY_DISPLAYED_DATA);
+    }
+    
+    // --- 5. INTERACTION LOGIC (REAL-TIME) ---
+    function closeAllDropdowns() { document.querySelectorAll('.dropdown-menu-content').forEach(m => m.classList.add('hidden')); }
+    
+    async function changeStatus(event, leadId, newStatus) {
+        event.stopPropagation(); closeAllDropdowns();
+        showLoading(true, 'Updating status...');
+        try {
+            const { error } = await supabaseClient.from('leads').update({ status: newStatus, last_update_datetime: new Date().toISOString() }).eq('id', leadId);
+            if (error) throw error;
+            const lead = CURRENTLY_DISPLAYED_DATA.find(l => l.ID == leadId);
+            if (lead) { lead.STATUS = newStatus; lead.LAST_UPDATE_DATETIME = new Date().toISOString(); }
+            renderLeads(CURRENTLY_DISPLAYED_DATA);
+        } catch (error) {
+            console.error("Status update failed:", error);
+            alertUser('Failed to update status.');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    function attachCardInteractionListeners() { 
+        if(currentUserRole === 'admin' || currentUserRole === 'editor'){
+            document.querySelectorAll('.edit-note-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); enterEditMode(e.currentTarget.closest('.last-note-container').querySelector('.last-note-display')); })); 
+        }
+        document.addEventListener('click', e => { if (!e.target.closest('[data-dropdown-container]')) { closeAllDropdowns(); } }); 
+    }
+    
+    function enterEditMode(noteEl) {
+        const container = noteEl.parentElement;
+        if (container.querySelector('.note-textarea')) return;
+        const leadId = noteEl.closest('.kanban-card').dataset.id;
+        const noteText = noteEl.dataset.note.trim();
+        container.querySelector('.flex').classList.add('hidden');
+        noteEl.classList.add('hidden');
+        const editArea = document.createElement('div');
+        editArea.innerHTML = `<textarea class="note-textarea w-full mb-1">${noteText}</textarea><div class="flex justify-end space-x-2"><button class="cancel-edit px-2 py-1 text-xs bg-gray-200 rounded">Cancel</button><button class="save-edit px-2 py-1 text-xs text-white bg-blue-600 rounded">Save</button></div>`;
+        container.appendChild(editArea);
+        const textarea = editArea.querySelector('textarea');
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        editArea.querySelector('.cancel-edit').addEventListener('click', e => { e.stopPropagation(); exitEditMode(noteEl, editArea); });
+        editArea.querySelector('.save-edit').addEventListener('click', e => { e.stopPropagation(); updateNoteInSupabase(leadId, textarea.value.trim(), noteEl, editArea); });
+    }
+    
+    async function updateNoteInSupabase(leadId, newNote, noteEl, editArea) {
+        showLoading(true, 'Saving note...');
+        try {
+            const { error } = await supabaseClient.from('leads').update({ last_note: newNote, last_update_datetime: new Date().toISOString() }).eq('id', leadId);
+            if (error) throw error;
+            const lead = CURRENTLY_DISPLAYED_DATA.find(l => l.ID == leadId);
+            if (lead) { lead.LAST_NOTE = newNote; lead.LAST_UPDATE_DATETIME = new Date().toISOString(); }
+            exitEditMode(noteEl, editArea);
+            renderLeads(CURRENTLY_DISPLAYED_DATA);
+            alertUser('Note saved successfully!');
+        } catch (error) {
+            console.error("Note save failed:", error);
+            alertUser('Failed to save note. Check console for details.');
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function exitEditMode(noteEl, editArea) { noteEl.parentElement.querySelector('.flex').classList.remove('hidden'); editArea.remove(); noteEl.classList.remove('hidden'); }
+    
+    function alertUser(message) { const el = document.createElement('div'); el.className = 'fixed top-4 right-4 bg-green-500 text-white p-3 rounded-lg shadow-xl z-50'; el.textContent = message; document.body.appendChild(el); setTimeout(() => el.remove(), 3000); }
+
+    // Expose functions to global scope
+    window.openStatusDropdown = openStatusDropdown; 
+    window.changeStatus = changeStatus; 
+    window.toggleSortOrder = toggleSortOrder; 
+    window.applyAllFilters = applyAllFilters; 
+    window.clearDateFilter = clearDateFilter;
+    window.handleSearchInput = handleSearchInput;
+    window.logout = logout;
+</script>
+</body>
+</html>
