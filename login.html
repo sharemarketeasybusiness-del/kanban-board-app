@@ -19,14 +19,14 @@
         <div id="auth-container"></div>
     </div>
 
+    <!-- *** BADLAV: Script ko head se utha kar body ke aakhir mein daal diya gaya hai *** -->
     <script type="module">
         import { Auth } from 'https://cdn.jsdelivr.net/npm/@supabase/auth-ui-js@2/dist/auth-ui.js';
 
         const SUPABASE_URL = 'https://tzzrqhyupdlyjkoyltjc.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6enJxaHl1cGRseWprb3lsdGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzU4MjUsImV4cCI6MjA3NzQxMTgyNX0.dWcaX4rRWrUzApTKCRbPFeYnEcRXnU9vALZ3pbDDW1A';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI্নিIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6enJxaHl1cGRseWprb3lsdGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzU4MjUsImV4cCI6MjA3NzQxMTgyNX0.dWcaX4rRWrUzApTKCRbPFeYnEcRXnU9vALZ3pbDDW1A';
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Check if user is already logged in, if so, redirect to main app
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 window.location.href = 'index.html';
