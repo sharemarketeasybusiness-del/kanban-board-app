@@ -113,7 +113,7 @@
                 <span class="text-sm text-gray-500">से</span>
                 <input type="date" id="endDate" class="date-input-small" title="End Date">
                 <button onclick="applyAllFilters()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">फ़िल्टर करें</button>
-                <button onclick="clearDateFilter()" class="bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-400">साफ करें</button>
+                <!-- "साफ करें" button yahaan se hata diya gaya hai -->
             </div>
             <div class="w-full md:w-auto flex-grow">
                 <input type="text" id="searchInput" oninput="handleSearchInput()" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="पूरे डेटाबेस में नाम, नंबर, या वाहन नं. से खोजें...">
@@ -150,13 +150,17 @@
     });
 
     function initializePage() {
+        const savedStartDate = localStorage.getItem('kanban_lastStartDate');
+        const savedEndDate = localStorage.getItem('kanban_lastEndDate');
         const today = new Date();
         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-        document.getElementById('startDate').value = firstDayOfMonth; 
-        lastStartDate = firstDayOfMonth;
         const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-        document.getElementById('endDate').value = lastDayOfMonth; 
-        lastEndDate = lastDayOfMonth;
+        const startDateToSet = savedStartDate || firstDayOfMonth;
+        const endDateToSet = savedEndDate || lastDayOfMonth;
+        document.getElementById('startDate').value = startDateToSet;
+        lastStartDate = startDateToSet;
+        document.getElementById('endDate').value = endDateToSet;
+        lastEndDate = endDateToSet;
         
         STATUS_COLUMN_DEFINITIONS.forEach(col => { COLUMN_SORT_ORDERS[col.id] = 'asc'; });
         document.getElementById('view-logs-button').style.display = 'block';
@@ -164,40 +168,25 @@
         renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें और 'फ़िल्टर करें' पर क्लिक करें।");
         updateColumnCounts([]);
         applyAllFilters();
-        startRealtimeSubscription(); // Real-time listener ko chalu karein
+        startRealtimeSubscription();
     }
 
-    // *** NAYA FEATURE: REAL-TIME SUBSCRIPTION FUNCTION ***
     function startRealtimeSubscription() {
-        const channel = supabaseClient
-            .channel('public:leads')
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'leads' },
-                (payload) => {
-                    console.log('Real-time change received!', payload);
-                    const updatedLeadData = payload.new;
-                    const leadIndex = CURRENTLY_DISPLAYED_DATA.findIndex(l => l.ID === updatedLeadData.id);
-
-                    if (leadIndex > -1) {
-                        const leadToUpdate = CURRENTLY_DISPLAYED_DATA[leadIndex];
-                        leadToUpdate.STATUS = updatedLeadData.status;
-                        leadToUpdate.LAST_NOTE = updatedLeadData.last_note;
-                        leadToUpdate.NAME = updatedLeadData.name;
-                        leadToUpdate.EXPIRY_ISO = updatedLeadData.expiry;
-                        leadToUpdate.VEHICLE_EXPIRY = formatSupabaseDate(updatedLeadData.expiry);
-                        leadToUpdate.WHATSAPP_NUMBER = updatedLeadData.whatsapp_number;
-                        leadToUpdate.OTHER_NUMBER_1 = updatedLeadData.other_number_1;
-                        leadToUpdate.OTHER_NUMBER_2 = updatedLeadData.other_number_2;
-                        leadToUpdate.VEHICLE_NAME = updatedLeadData.vehicle_name;
-                        leadToUpdate.VEHICLE_NO = updatedLeadData.vehicle_no;
-                        leadToUpdate.THIRD_PARTY_PRICE = updatedLeadData.third_party_price;
-                        leadToUpdate.LAST_UPDATE_DATETIME = updatedLeadData.last_update_datetime;
-                        renderLeads(CURRENTLY_DISPLAYED_DATA);
-                    }
-                }
-            )
-            .subscribe();
+        const channel = supabaseClient.channel('public:leads').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (payload) => {
+            console.log('Real-time change received!', payload);
+            const updatedLeadData = payload.new;
+            const leadIndex = CURRENTLY_DISPLAYED_DATA.findIndex(l => l.ID === updatedLeadData.id);
+            if (leadIndex > -1) {
+                Object.assign(CURRENTLY_DISPLAYED_DATA[leadIndex], {
+                    STATUS: updatedLeadData.status, LAST_NOTE: updatedLeadData.last_note, NAME: updatedLeadData.name,
+                    EXPIRY_ISO: updatedLeadData.expiry, VEHICLE_EXPIRY: formatSupabaseDate(updatedLeadData.expiry),
+                    WHATSAPP_NUMBER: updatedLeadData.whatsapp_number, OTHER_NUMBER_1: updatedLeadData.other_number_1, OTHER_NUMBER_2: updatedLeadData.other_number_2,
+                    VEHICLE_NAME: updatedLeadData.vehicle_name, VEHICLE_NO: updatedLeadData.vehicle_no,
+                    THIRD_PARTY_PRICE: updatedLeadData.third_party_price, LAST_UPDATE_DATETIME: updatedLeadData.last_update_datetime
+                });
+                renderLeads(CURRENTLY_DISPLAYED_DATA);
+            }
+        }).subscribe();
     }
 
     async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
@@ -260,8 +249,27 @@
     
     function handleFetchedData(data) { CURRENTLY_DISPLAYED_DATA = data; renderColumns(); renderLeads(CURRENTLY_DISPLAYED_DATA); showLoading(false); }
     function handleFailure(error) { showLoading(false); console.error("Supabase Function Failed:", error); renderColumns(`<p class="text-red-600 font-bold">Error: Could not load data. (${error.message})</p><p class="text-gray-400 mt-2">Please check browser console for details.</p>`); }
-    function applyAllFilters() { const startDateStr = document.getElementById('startDate').value, endDateStr = document.getElementById('endDate').value; if (!startDateStr || !endDateStr) { alert("शुरू करने के लिए कृपया Start Date और End Date दोनों चुनें।"); return; } lastStartDate = startDateStr; lastEndDate = endDateStr; document.getElementById('searchInput').value = ''; fetchKanbanData(startDateStr, endDateStr); }
-    function clearDateFilter() { document.getElementById('startDate').value = ''; document.getElementById('endDate').value = ''; document.getElementById('searchInput').value = ''; lastStartDate = ''; lastEndDate = ''; CURRENTLY_DISPLAYED_DATA = []; renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें और 'फ़िल्टर करें' पर क्लिक करें।"); updateColumnCounts([]); }
+    function applyAllFilters() { 
+        const startDateStr = document.getElementById('startDate').value, endDateStr = document.getElementById('endDate').value; 
+        if (!startDateStr || !endDateStr) { alert("शुरू करने के लिए कृपया Start Date और End Date दोनों चुनें।"); return; } 
+        localStorage.setItem('kanban_lastStartDate', startDateStr);
+        localStorage.setItem('kanban_lastEndDate', endDateStr);
+        lastStartDate = startDateStr; 
+        lastEndDate = endDateStr;
+        document.getElementById('searchInput').value = ''; 
+        fetchKanbanData(startDateStr, endDateStr); 
+    }
+    
+    function clearDateFilter() {
+        document.getElementById('startDate').value = ''; document.getElementById('endDate').value = ''; document.getElementById('searchInput').value = '';
+        lastStartDate = ''; lastEndDate = '';
+        localStorage.removeItem('kanban_lastStartDate');
+        localStorage.removeItem('kanban_lastEndDate');
+        CURRENTLY_DISPLAYED_DATA = [];
+        renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें और 'फ़िल्टर करें' पर क्लिक करें।");
+        updateColumnCounts([]);
+    }
+    
     function renderLeads(leadsToRender) {
         const groupedLeads = leadsToRender.reduce((acc, lead) => { const statusId = normalizeStatusToId(lead.STATUS); if (!acc[statusId]) acc[statusId] = []; acc[statusId].push(lead); return acc; }, {});
         STATUS_COLUMN_DEFINITIONS.forEach(col => {
@@ -295,9 +303,6 @@
         try {
             const { error } = await supabaseClient.from('leads').update({ status: newStatus, last_update_datetime: new Date().toISOString() }).eq('id', leadId);
             if (error) throw error;
-            const lead = CURRENTLY_DISPLAYED_DATA.find(l => l.ID == leadId);
-            if (lead) { lead.STATUS = newStatus; lead.LAST_UPDATE_DATETIME = new Date().toISOString(); }
-            renderLeads(CURRENTLY_DISPLAYED_DATA);
         } catch (error) { console.error("Status update failed:", error); alertUser('Failed to update status.'); } 
         finally { showLoading(false); }
     }
@@ -327,10 +332,7 @@
         try {
             const { error } = await supabaseClient.from('leads').update({ last_note: newNote, last_update_datetime: new Date().toISOString() }).eq('id', leadId);
             if (error) throw error;
-            const lead = CURRENTLY_DISPLAYED_DATA.find(l => l.ID == leadId);
-            if (lead) { lead.LAST_NOTE = newNote; lead.LAST_UPDATE_DATETIME = new Date().toISOString(); }
             exitEditMode(noteEl, editArea);
-            renderLeads(CURRENTLY_DISPLAYED_DATA);
             alertUser('Note saved successfully!');
         } catch (error) { console.error("Note save failed:", error); alertUser('Failed to save note.'); } 
         finally { showLoading(false); }
@@ -348,9 +350,6 @@
         try {
             const { error } = await supabaseClient.from('leads').update(updatedData).eq('id', leadId);
             if (error) throw error;
-            const leadIndex = CURRENTLY_DISPLAYED_DATA.findIndex(l => l.ID == leadId);
-            if (leadIndex > -1) { Object.assign(CURRENTLY_DISPLAYED_DATA[leadIndex], { NAME: updatedData.name, EXPIRY_ISO: updatedData.expiry, VEHICLE_EXPIRY: formatSupabaseDate(updatedData.expiry), WHATSAPP_NUMBER: updatedData.whatsapp_number, OTHER_NUMBER_1: updatedData.other_number_1, OTHER_NUMBER_2: updatedData.other_number_2, VEHICLE_NAME: updatedData.vehicle_name, VEHICLE_NO: updatedData.vehicle_no, THIRD_PARTY_PRICE: updatedData.third_party_price }); }
-            renderLeads(CURRENTLY_DISPLAYED_DATA);
             closeEditModal();
             alertUser('Details saved successfully!');
         } catch (error) { console.error("Details save failed:", error); alertUser('Failed to save details.'); } 
