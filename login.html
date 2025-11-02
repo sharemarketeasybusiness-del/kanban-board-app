@@ -19,23 +19,20 @@
         <div id="auth-container"></div>
     </div>
 
-    <!-- *** YAHI HAI FINAL BADLAAV *** -->
     <script type="module">
-        // Purana URL: import { Auth } from '.../auth-ui.js';
-        // Naya aur Sahi URL:
-        import { Auth } from 'https://cdn.jsdelivr.net/npm/@supabase/auth-ui-js@2.15.1/dist/bundle.js';
+        import { Auth } from 'https://cdn.jsdelivr.net/npm/@supabase/auth-ui-js@2/dist/auth-ui.js';
 
         const SUPABASE_URL = 'https://tzzrqhyupdlyjkoyltjc.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6enJxaHl1cGRseWprb3lsdGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzU4MjUsImV4cCI6MjA3NzQxMTgyNX0.dWcaX4rRWrUzApTKCRbPFeYnEcRXnU9vALZ3pbDDW1A';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 window.location.href = 'index.html';
             }
         });
 
-        new Auth(supabase, '#auth-container', {
+        new Auth(supabaseClient, '#auth-container', {
             providers: [],
             view: 'sign_in',
             localization: {
@@ -47,7 +44,7 @@
             },
         });
 
-        supabase.auth.onAuthStateChange((event, session) => {
+        supabaseClient.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN') {
                 window.location.href = 'index.html';
             }
