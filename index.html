@@ -223,6 +223,28 @@
 
     function updateColumnCounts(data) { document.getElementById('totalLeads').textContent = data.length; STATUS_COLUMN_DEFINITIONS.forEach(col => { const countEl = document.getElementById(`count-${col.id}`); if(countEl) countEl.textContent = data.filter(lead => normalizeStatusToId(lead.STATUS) === col.id).length; }); }
     
+    async function fetchKanbanData(startDate, endDate) {
+        showLoading(true);
+        try {
+            let query = supabaseClient.from('leads').select('*');
+            if (startDate) query = query.gte('expiry', startDate);
+            if (endDate) query = query.lte('expiry', endDate);
+            const { data, error } = await query;
+            if (error) throw error;
+            handleFetchedData(data.map(row => ({ ID: row.id, S_NO: row.s_no, NAME: row.name, STATUS: row.status, VEHICLE_NO: row.vehicle_no, VEHICLE_NAME: row.vehicle_name, PRODUCT: row.product, LAST_NOTE: row.last_note, VEHICLE_EXPIRY: formatSupabaseDate(row.expiry), EXPIRY_ISO: row.expiry, LAST_UPDATE_DATETIME: row.last_update_datetime, THIRD_PARTY_PRICE: row.third_party_price, WHATSAPP_NUMBER: row.whatsapp_number, OTHER_NUMBER_1: row.other_number_1, OTHER_NUMBER_2: row.other_number_2 })));
+        } catch (error) { handleFailure(error); }
+    }
+    
+    async function searchLeads(searchTerm) {
+        showLoading(true, `"${searchTerm}" के लिए खोजा जा रहा है...`);
+        try {
+            const searchPattern = `%${searchTerm}%`;
+            const { data, error } = await supabaseClient.from('leads').select('*').or(`name.ilike.${searchPattern},whatsapp_number.ilike.${searchPattern},other_number_1.ilike.${searchPattern},other_number_2.ilike.${searchPattern},vehicle_no.ilike.${searchPattern}`).limit(100);
+            if (error) throw error;
+            handleFetchedData(data.map(row => ({ ID: row.id, S_NO: row.s_no, NAME: row.name, STATUS: row.status, VEHICLE_NO: row.vehicle_no, VEHICLE_NAME: row.vehicle_name, PRODUCT: row.product, LAST_NOTE: row.last_note, VEHICLE_EXPIRY: formatSupabaseDate(row.expiry), EXPIRY_ISO: row.expiry, LAST_UPDATE_DATETIME: row.last_update_datetime, THIRD_PARTY_PRICE: row.third_party_price, WHATSAPP_NUMBER: row.whatsapp_number, OTHER_NUMBER_1: row.other_number_1, OTHER_NUMBER_2: row.other_number_2 })));
+        } catch(error) { handleFailure(error); }
+    }
+    
     function handleFetchedData(data) { CURRENTLY_DISPLAYED_DATA = data; renderColumns(); renderLeads(CURRENTLY_DISPLAYED_DATA); showLoading(false); }
     function handleFailure(error) { showLoading(false); console.error("Supabase Function Failed:", error); renderColumns(`<p class="text-red-600 font-bold">Error: Could not load data. (${error.message})</p><p class="text-gray-400 mt-2">Please check browser console for details.</p>`); }
     function applyAllFilters() { 
@@ -242,16 +264,6 @@
         if (startDateStr && endDateStr) {
             applyAllFilters();
         }
-    }
-
-    function clearDateFilter() {
-        document.getElementById('startDate').value = ''; document.getElementById('endDate').value = ''; document.getElementById('searchInput').value = '';
-        lastStartDate = ''; lastEndDate = '';
-        localStorage.removeItem('kanban_lastStartDate');
-        localStorage.removeItem('kanban_lastEndDate');
-        CURRENTLY_DISPLAYED_DATA = [];
-        renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें।");
-        updateColumnCounts([]);
     }
     
     function renderLeads(leadsToRender) {
