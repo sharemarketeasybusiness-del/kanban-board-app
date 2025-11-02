@@ -99,9 +99,6 @@
 </div>
             <div class="flex items-center space-x-2 sm:space-x-4">
                 <button id="view-logs-button" onclick="openLogModal()" class="bg-gray-600 text-white px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm rounded-lg font-medium hover:bg-gray-700" style="display: none;">View Logs</button>
-                <div>
-                    <p class="text-sm font-medium text-gray-700" id="userEmail"></p>
-                </div>
                 <button onclick="logout()" class="bg-red-500 text-white px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm rounded-lg font-medium hover:bg-red-600">Logout</button>
             </div>
         </div>
@@ -138,7 +135,6 @@
             if (!session) { window.location.href = 'login.html'; } 
             else {
                 document.body.style.display = 'flex';
-                document.getElementById('userEmail').textContent = session.user.email;
                 currentUserRole = session.user.app_metadata.role || 'viewer';
                 initializePage();
             }
@@ -382,4 +378,5 @@
 </script>
 </body>
 </html>
+
 
