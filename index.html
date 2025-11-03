@@ -70,7 +70,7 @@
     <div id="logModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 items-center justify-center z-40" style="display: none;">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">Activity Logs (Non-Admin)</h3>
+                <div class="flex items-center">     <h3 class="text-lg font-medium leading-6 text-gray-900">Activity Logs (Non-Admin)</h3>     <span id="todays-edit-count" class="ml-2 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center" title="Today's Edits">?</span> </div>
                 <button type="button" onclick="closeLogModal()" class="text-gray-400 hover:text-gray-600 p-2 rounded-full text-2xl leading-none">&times;</button>
             </div>
             <div class="modal-body">
@@ -352,18 +352,53 @@
     }
     
     async function openLogModal() {
-        showLoading(true, 'Loading logs...');
-        try {
-            const { data, error } = await supabaseClient.from('edit_logs').select('*').order('created_at', { ascending: false }).limit(200);
-            if (error) throw error;
-            const logTableBody = document.getElementById('log-table-body');
-            logTableBody.innerHTML = '';
-            if (data.length === 0) { logTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">No logs found.</td></tr>`; } 
-            else { data.forEach(log => { logTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-4 py-2 text-sm text-gray-900 break-words">${log.user_email}</td><td class="px-4 py-2 text-sm text-gray-500">${log.vehicle_no || 'N/A'}</td><td class="px-4 py-2 text-sm text-gray-500 font-semibold">${log.changed_field}</td><td class="px-4 py-2 text-sm text-gray-500 break-words">${(log.old_value && log.old_value.length > 30) ? `<details><summary>${log.old_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.old_value}</p></details>` : (log.old_value || '<i>empty</i>')}</td><td class="px-4 py-2 text-sm text-gray-900 break-words">${(log.new_value && log.new_value.length > 30) ? `<details><summary>${log.new_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.new_value}</p></details>` : (log.new_value || '<i>empty</i>')}</td><td class="px-4 py-2 text-sm text-gray-500">${formatDateTime(log.created_at)}</td></tr>`); }); }
-            document.getElementById('logModal').style.display = 'flex';
-        } catch (error) { console.error("Failed to load logs:", error); alertUser("Could not load logs."); } 
-        finally { showLoading(false); }
+    showLoading(true, 'Loading logs...');
+    
+    // Counter ke element ko pehle hi dhoondh lein
+    const countElement = document.getElementById('todays-edit-count');
+    countElement.textContent = '?'; // Reset to '?' every time
+    
+    try {
+        // --- NAYA CODE START ---
+        // 1. Aaj ki तारीख ka count laane ke liye query
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Aaj subah 12 baje ka time set karein
+        const todayISOString = today.toISOString();
+
+        const { count, error: countError } = await supabaseClient
+            .from('edit_logs')
+            .select('*', { count: 'exact', head: true }) // 'head: true' se data nahi aata, sirf count aata hai. Yeh fast hai.
+            .gte('created_at', todayISOString); // gte = greater than or equal to
+
+        if (countError) {
+            console.error("Error fetching today's count:", countError);
+        } else {
+            // Agar count mila to usko counter mein daal dein
+            countElement.textContent = count;
+        }
+        // --- NAYA CODE END ---
+
+        // 2. Log table ka poora data laane ki query (yeh pehle jaisi hi hai)
+        const { data, error } = await supabaseClient.from('edit_logs').select('*').order('created_at', { ascending: false }).limit(200);
+        if (error) throw error;
+        
+        const logTableBody = document.getElementById('log-table-body');
+        logTableBody.innerHTML = '';
+        if (data.length === 0) {
+            logTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">No logs found.</td></tr>`;
+        } else {
+            data.forEach(log => {
+                logTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-4 py-2 text-sm text-gray-900 break-words">${log.user_email}</td><td class="px-4 py-2 text-sm text-gray-500">${log.vehicle_no || 'N/A'}</td><td class="px-4 py-2 text-sm text-gray-500 font-semibold">${log.changed_field}</td><td class="px-4 py-2 text-sm text-gray-500 break-words">${(log.old_value && log.old_value.length > 30) ? `<details><summary>${log.old_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.old_value}</p></details>` : (log.old_value || '<i>empty</i>')}</td><td class="px-4 py-2 text-sm text-gray-900 break-words">${(log.new_value && log.new_value.length > 30) ? `<details><summary>${log.new_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.new_value}</p></details>` : (log.new_value || '<i>empty</i>')}</td><td class="px-4 py-2 text-sm text-gray-500">${formatDateTime(log.created_at)}</td></tr>`);
+            });
+        }
+        document.getElementById('logModal').style.display = 'flex';
+    } catch (error) {
+        console.error("Failed to load logs:", error);
+        alertUser("Could not load logs.");
+    } finally {
+        showLoading(false);
     }
+}
 
     function closeLogModal() { document.getElementById('logModal').style.display = 'none'; }
     
@@ -383,6 +418,7 @@
 </script>
 </body>
 </html>
+
 
 
 
