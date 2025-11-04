@@ -73,6 +73,20 @@
                 <div class="flex items-center">     <h3 class="text-lg font-medium leading-6 text-gray-900">Activity Logs (Non-Admin)</h3>     <span id="todays-edit-count" class="ml-2 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center" title="Today's Edits">?</span> </div>
                 <button type="button" onclick="closeLogModal()" class="text-gray-400 hover:text-gray-600 p-2 rounded-full text-2xl leading-none">&times;</button>
             </div>
+            ...
+<div class="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6">
+    <div class="flex justify-between items-center mb-4">
+         <!-- Aapka header yahan hai -->
+    </div>
+
+    <!-- YAHAN NAYA CODE JODEIN -->
+    <div id="log-table-footer" class="py-2 text-center" style="display: none;">
+         <button id="load-more-logs-btn" onclick="loadMoreLogs()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+             Load More (Next 3 Days)
+         </button>
+    </div>
+    <!-- NAYA CODE KHATM -->
+    
             <div class="modal-body">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -124,6 +138,7 @@
     let COLUMN_SORT_ORDERS = {}; 
     let CURRENTLY_DISPLAYED_DATA = [];
     let debounceTimer;
+    let logsOffset = 0; // Yeh yaad rakhega ki hum kitne din ka data load kar chuke hain
     let currentUserRole = 'viewer';
     let lastStartDate = '', lastEndDate = '';
 
@@ -352,55 +367,70 @@
         finally { showLoading(false); }
     }
     
-    async function openLogModal() {
+// YEH NAYA, CHHOTA WALA openLogModal HAI
+async function openLogModal() {
     showLoading(true, 'Loading logs...');
+    logsOffset = 0; // Har baar modal kholne par ginti shuru se start karein
+    document.getElementById('log-table-body').innerHTML = ''; // Table ko khaali karein
+    document.getElementById('log-table-footer').style.display = 'none'; // Button ko chhupayein
     
-    // Counter ke element ko pehle hi dhoondh lein
-    const countElement = document.getElementById('todays-edit-count');
-    countElement.textContent = '?'; // Reset to '?' every time
+    await fetchAndDisplayLogs(logsOffset); // Data laane ke liye naye helper ko bulayein
     
-    try {
-        // --- NAYA CODE START ---
-        // 1. Aaj ki तारीख ka count laane ke liye query
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Aaj subah 12 baje ka time set karein
-        const todayISOString = today.toISOString();
+    showLoading(false);
+    document.getElementById('logModal').style.display = 'flex';
+}
 
-        const { count, error: countError } = await supabaseClient
-            .from('edit_logs')
-            .select('*', { count: 'exact', head: true }) // 'head: true' se data nahi aata, sirf count aata hai. Yeh fast hai.
-            .gte('created_at', todayISOString); // gte = greater than or equal to
+    // =======================================================
+// FUNCTION NO. 1: YEH ASLI MEHNAT KAREGA
+// =======================================================
+async function fetchAndDisplayLogs(offset) {
+    const loadingMore = offset > 0;
+    
+    // Naye helper ko 'offset' ke instruction ke saath bulayein
+    const { data, error } = await supabaseClient.rpc('get_logs_with_display_names', { days_offset: offset });
 
-        if (countError) {
-            console.error("Error fetching today's count:", countError);
-        } else {
-            // Agar count mila to usko counter mein daal dein
-            countElement.textContent = count;
-        }
-        // --- NAYA CODE END ---
-
-        // 2. Log table ka poora data laane ki query (yeh pehle jaisi hi hai)
-        const { data, error } = await supabaseClient.rpc('get_logs_with_display_names');
-        if (error) throw error;
-        
-        const logTableBody = document.getElementById('log-table-body');
-        logTableBody.innerHTML = '';
-        if (data.length === 0) {
-            logTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">No logs found.</td></tr>`;
-        } else {
-            data.forEach(log => {
-                logTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-4 py-2 text-sm text-gray-900 break-words">${log.display_name || log.user_email}</td><td class="px-4 py-2 text-sm text-gray-500">${log.vehicle_no || 'N/A'}</td><td class="px-4 py-2 text-sm text-gray-500">${formatSupabaseDate(log.vehicle_expiry_date)}</td><td class="px-4 py-2 text-sm text-gray-500 font-semibold">${log.changed_field}</td><td class="px-4 py-2 text-sm text-gray-500 break-words">${(log.old_value && log.old_value.length > 30) ? `<details><summary>${log.old_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.old_value}</p></details>` : (log.old_value || '<i>empty</i>')}</td><td class="px-4 py-2 text-sm text-gray-900 break-words">${(log.new_value && log.new_value.length > 30) ? `<details><summary>${log.new_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.new_value}</p></details>` : (log.new_value || '<i>empty</i>')}</td><td class="px-4 py-2 text-sm text-gray-500">${formatDateTime(log.created_at)}</td></tr>`);
-            });
-        }
-        document.getElementById('logModal').style.display = 'flex';
-    } catch (error) {
+    if (error) {
         console.error("Failed to load logs:", error);
         alertUser("Could not load logs.");
-    } finally {
-        showLoading(false);
+        return;
+    }
+
+    const logTableBody = document.getElementById('log-table-body');
+    
+    if (data.length === 0 && !loadingMore) {
+        logTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">No logs found in the last 3 days.</td></tr>`;
+    } else {
+        data.forEach(log => {
+            const rowHTML = `<tr>
+                <td class="px-4 py-2 text-sm text-gray-900 break-words">${log.display_name || log.user_email}</td>
+                <td class="px-4 py-2 text-sm text-gray-500">${log.vehicle_no || 'N/A'}</td>
+                <td class="px-4 py-2 text-sm text-gray-500">${formatSupabaseDate(log.vehicle_expiry_date)}</td>
+                <td class="px-4 py-2 text-sm text-gray-500 font-semibold">${log.changed_field}</td>
+                <td class="px-4 py-2 text-sm text-gray-500 break-words">${(log.old_value && log.old_value.length > 30) ? `<details><summary>${log.old_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.old_value}</p></details>` : (log.old_value || '<i>empty</i>')}</td>
+                <td class="px-4 py-2 text-sm text-gray-900 break-words">${(log.new_value && log.new_value.length > 30) ? `<details><summary>${log.new_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.new_value}</p></details>` : (log.new_value || '<i>empty</i>')}</td>
+                <td class="px-4 py-2 text-sm text-gray-500">${formatDateTime(log.created_at)}</td>
+            </tr>`;
+            logTableBody.insertAdjacentHTML('beforeend', rowHTML);
+        });
+    }
+    
+    if (data.length > 0) {
+        document.getElementById('log-table-footer').style.display = 'block';
+    } else {
+        document.getElementById('log-table-footer').style.display = 'none';
+        if (loadingMore) alertUser("No more logs to load.");
     }
 }
 
+// =======================================================
+// FUNCTION NO. 2: YEH 'LOAD MORE' BUTTON KE LIYE HAI
+// =======================================================
+async function loadMoreLogs() {
+    logsOffset += 3; // Offset ko 3 din aage badhayein
+    showLoading(true, 'Loading more logs...');
+    await fetchAndDisplayLogs(logsOffset);
+    showLoading(false);
+}   
     function closeLogModal() { document.getElementById('logModal').style.display = 'none'; }
     
     window.logout = logout;
@@ -415,10 +445,12 @@
     window.saveLeadDetails = saveLeadDetails;
     window.openLogModal = openLogModal;
     window.closeLogModal = closeLogModal;
+    window.loadMoreLogs = loadMoreLogs;
     window.autoApplyFilters = autoApplyFilters;
 </script>
 </body>
 </html>
+
 
 
 
