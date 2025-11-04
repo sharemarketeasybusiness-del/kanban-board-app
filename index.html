@@ -67,26 +67,17 @@
         </div>
     </div>
 
+    <!-- YEH logModal KA SAHI AUR SAAF CODE HAI -->
     <div id="logModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 items-center justify-center z-40" style="display: none;">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6">
             <div class="flex justify-between items-center mb-4">
-                <div class="flex items-center">     <h3 class="text-lg font-medium leading-6 text-gray-900">Activity Logs (Non-Admin)</h3>     <span id="todays-edit-count" class="ml-2 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center" title="Today's Edits">?</span> </div>
+                <div class="flex items-center">
+                    <h3 class="text-lg font-medium leading-6 text-gray-900">Activity Logs</h3>
+                    <span id="todays-edit-count" class="ml-2 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center" title="Today's Edits">?</span>
+                </div>
                 <button type="button" onclick="closeLogModal()" class="text-gray-400 hover:text-gray-600 p-2 rounded-full text-2xl leading-none">&times;</button>
             </div>
-            ...
-<div class="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6">
-    <div class="flex justify-between items-center mb-4">
-         <!-- Aapka header yahan hai -->
-    </div>
 
-    <!-- YAHAN NAYA CODE JODEIN -->
-    <div id="log-table-footer" class="py-2 text-center" style="display: none;">
-         <button id="load-more-logs-btn" onclick="loadMoreLogs()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-             Load More (Next 3 Days)
-         </button>
-    </div>
-    <!-- NAYA CODE KHATM -->
-    
             <div class="modal-body">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -103,15 +94,21 @@
                     <tbody id="log-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                 </table>
             </div>
+
+            <div id="log-table-footer" class="py-2 text-center border-t mt-2" style="display: none;">
+                 <button id="load-more-logs-btn" onclick="loadMoreLogs()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 mt-2">
+                     Load More (Next 3 Days)
+                 </button>
+            </div>
         </div>
     </div>
     
     <header class="bg-white shadow-md p-4 sticky top-0 z-10 flex flex-col space-y-3">
         <div class="flex flex-col-reverse sm:flex-row justify-between items-center w-full space-y-4 sm:space-y-0">
             <div class="w-full flex justify-between items-center">
-    <h1 class="text-xl font-bold text-gray-800">LEADS-EMP-01</h1>
-    <p class="text-sm text-gray-500">कुल लीड्स: <span id="totalLeads">0</span></p>
-</div>
+                <h1 class="text-xl font-bold text-gray-800">LEADS-EMP-01</h1>
+                <p class="text-sm text-gray-500">कुल लीड्स: <span id="totalLeads">0</span></p>
+            </div>
             <div class="flex items-center space-x-2 sm:space-x-4">
                 <button id="view-logs-button" onclick="openLogModal()" class="bg-gray-600 text-white px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm rounded-lg font-medium hover:bg-gray-700" style="display: none;">View Logs</button>
                 <button onclick="logout()" class="bg-red-500 text-white px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm rounded-lg font-medium hover:bg-red-600">Logout</button>
@@ -171,7 +168,7 @@
         lastEndDate = endDateToSet;
         
         STATUS_COLUMN_DEFINITIONS.forEach(col => { COLUMN_SORT_ORDERS[col.id] = 'asc'; });
-        if (currentUserRole === 'admin' || currentUserRole === 'monitor') {     document.getElementById('view-logs-button').style.display = 'block'; }
+        if (currentUserRole === 'admin' || currentUserRole === 'monitor') { document.getElementById('view-logs-button').style.display = 'block'; }
 
         renderColumns("शुरू करने के लिए कृपया एक तारीख सीमा चुनें।");
         updateColumnCounts([]);
@@ -304,6 +301,14 @@
         if (searchTerm.length < 3) { return; }
         debounceTimer = setTimeout(() => { searchLeads(searchTerm); }, 500);
     }
+    
+    // YEH KHO GAYA THA, ISKO WAPAS JOD RAHE HAIN
+    function clearDateFilter() {
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        renderColumns("Please select a date range to begin.");
+        updateColumnCounts([]);
+    }
 
     function toggleSortOrder(columnId) { const currentOrder = COLUMN_SORT_ORDERS[columnId] || 'asc'; COLUMN_SORT_ORDERS[columnId] = currentOrder === 'asc' ? 'desc' : 'asc'; renderColumns(); renderLeads(CURRENTLY_DISPLAYED_DATA); }
     function closeAllDropdowns() { document.querySelectorAll('.dropdown-menu-content').forEach(m => m.classList.add('hidden')); }
@@ -367,70 +372,89 @@
         finally { showLoading(false); }
     }
     
-// YEH NAYA, CHHOTA WALA openLogModal HAI
-async function openLogModal() {
-    showLoading(true, 'Loading logs...');
-    logsOffset = 0; // Har baar modal kholne par ginti shuru se start karein
-    document.getElementById('log-table-body').innerHTML = ''; // Table ko khaali karein
-    document.getElementById('log-table-footer').style.display = 'none'; // Button ko chhupayein
-    
-    await fetchAndDisplayLogs(logsOffset); // Data laane ke liye naye helper ko bulayein
-    
-    showLoading(false);
-    document.getElementById('logModal').style.display = 'flex';
-}
+    // YEH NAYA, CHHOTA WALA openLogModal HAI
+    async function openLogModal() {
+        showLoading(true, 'Loading logs...');
+        logsOffset = 0; // Har baar modal kholne par ginti shuru se start karein
+        document.getElementById('log-table-body').innerHTML = ''; // Table ko khaali karein
+        document.getElementById('log-table-footer').style.display = 'none'; // Button ko chhupayein
+        
+        await fetchAndDisplayLogs(logsOffset); // Data laane ke liye naye helper ko bulayein
+        
+        showLoading(false);
+        document.getElementById('logModal').style.display = 'flex';
+    }
+
+    // YEH UPDATED FUNCTION HAI JISMEIN 'TODAY'S COUNT' WAPAS AA GAYA HAI
+    async function fetchAndDisplayLogs(offset) {
+        const loadingMore = offset > 0;
+        const countElement = document.getElementById('todays-edit-count');
+
+        // Agar pehli baar load kar rahe hain, tabhi count laayein
+        if (!loadingMore) {
+            countElement.textContent = '?';
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayISOString = today.toISOString();
+
+            const { count, error: countError } = await supabaseClient
+                .from('edit_logs')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', todayISOString);
+
+            if (countError) {
+                console.error("Error fetching today's count:", countError);
+            } else {
+                countElement.textContent = count;
+            }
+        }
+
+        // Naye helper ko 'offset' ke instruction ke saath bulayein
+        const { data, error } = await supabaseClient.rpc('get_logs_with_display_names', { days_offset: offset });
+
+        if (error) {
+            console.error("Failed to load logs:", error);
+            alertUser("Could not load logs.");
+            return;
+        }
+
+        const logTableBody = document.getElementById('log-table-body');
+        if (data.length === 0 && !loadingMore) {
+            logTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">No logs found in the last 3 days.</td></tr>`;
+        } else {
+            data.forEach(log => {
+                const rowHTML = `<tr>
+                    <td class="px-4 py-2 text-sm text-gray-900 break-words">${log.display_name || log.user_email}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${log.vehicle_no || 'N/A'}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${formatSupabaseDate(log.vehicle_expiry_date)}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500 font-semibold">${log.changed_field}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500 break-words">${(log.old_value && log.old_value.length > 30) ? `<details><summary>${log.old_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.old_value}</p></details>` : (log.old_value || '<i>empty</i>')}</td>
+                    <td class="px-4 py-2 text-sm text-gray-900 break-words">${(log.new_value && log.new_value.length > 30) ? `<details><summary>${log.new_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.new_value}</p></details>` : (log.new_value || '<i>empty</i>')}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${formatDateTime(log.created_at)}</td>
+                </tr>`;
+                logTableBody.insertAdjacentHTML('beforeend', rowHTML);
+            });
+        }
+        
+        // Agar is baar data aaya hai, to "Load More" button dikhayein
+        if (data.length > 0) {
+            document.getElementById('log-table-footer').style.display = 'block';
+        } else {
+            document.getElementById('log-table-footer').style.display = 'none';
+            if (loadingMore) alertUser("No more logs to load.");
+        }
+    }
 
     // =======================================================
-// FUNCTION NO. 1: YEH ASLI MEHNAT KAREGA
-// =======================================================
-async function fetchAndDisplayLogs(offset) {
-    const loadingMore = offset > 0;
-    
-    // Naye helper ko 'offset' ke instruction ke saath bulayein
-    const { data, error } = await supabaseClient.rpc('get_logs_with_display_names', { days_offset: offset });
+    // FUNCTION NO. 2: YEH 'LOAD MORE' BUTTON KE LIYE HAI
+    // =======================================================
+    async function loadMoreLogs() {
+        logsOffset += 3; // Offset ko 3 din aage badhayein
+        showLoading(true, 'Loading more logs...');
+        await fetchAndDisplayLogs(logsOffset);
+        showLoading(false);
+    }   
 
-    if (error) {
-        console.error("Failed to load logs:", error);
-        alertUser("Could not load logs.");
-        return;
-    }
-
-    const logTableBody = document.getElementById('log-table-body');
-    
-    if (data.length === 0 && !loadingMore) {
-        logTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">No logs found in the last 3 days.</td></tr>`;
-    } else {
-        data.forEach(log => {
-            const rowHTML = `<tr>
-                <td class="px-4 py-2 text-sm text-gray-900 break-words">${log.display_name || log.user_email}</td>
-                <td class="px-4 py-2 text-sm text-gray-500">${log.vehicle_no || 'N/A'}</td>
-                <td class="px-4 py-2 text-sm text-gray-500">${formatSupabaseDate(log.vehicle_expiry_date)}</td>
-                <td class="px-4 py-2 text-sm text-gray-500 font-semibold">${log.changed_field}</td>
-                <td class="px-4 py-2 text-sm text-gray-500 break-words">${(log.old_value && log.old_value.length > 30) ? `<details><summary>${log.old_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.old_value}</p></details>` : (log.old_value || '<i>empty</i>')}</td>
-                <td class="px-4 py-2 text-sm text-gray-900 break-words">${(log.new_value && log.new_value.length > 30) ? `<details><summary>${log.new_value.substring(0, 25) + '...'}</summary><p class="mt-2">${log.new_value}</p></details>` : (log.new_value || '<i>empty</i>')}</td>
-                <td class="px-4 py-2 text-sm text-gray-500">${formatDateTime(log.created_at)}</td>
-            </tr>`;
-            logTableBody.insertAdjacentHTML('beforeend', rowHTML);
-        });
-    }
-    
-    if (data.length > 0) {
-        document.getElementById('log-table-footer').style.display = 'block';
-    } else {
-        document.getElementById('log-table-footer').style.display = 'none';
-        if (loadingMore) alertUser("No more logs to load.");
-    }
-}
-
-// =======================================================
-// FUNCTION NO. 2: YEH 'LOAD MORE' BUTTON KE LIYE HAI
-// =======================================================
-async function loadMoreLogs() {
-    logsOffset += 3; // Offset ko 3 din aage badhayein
-    showLoading(true, 'Loading more logs...');
-    await fetchAndDisplayLogs(logsOffset);
-    showLoading(false);
-}   
     function closeLogModal() { document.getElementById('logModal').style.display = 'none'; }
     
     window.logout = logout;
@@ -450,14 +474,3 @@ async function loadMoreLogs() {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
